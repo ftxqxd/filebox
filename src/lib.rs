@@ -45,7 +45,7 @@ impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> {
         }
     }
 
-    /// Opens a `FileBox` from a file, reading the data stored inside. This will fail if the file
+    /// Opens a `FileBox` from a path, reading the data stored inside. This will fail if the file
     /// cannot be read or the file contains invalid data.
     pub fn open(p: &Path) -> FileBox<T> {
         let mut f = File::open_mode(p, io::Open, io::Read).unwrap();
@@ -69,6 +69,16 @@ impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> + Defau
     /// Creates a new `FileBox` at the given path with its default value.
     pub fn new(p: &Path) -> FileBox<T> {
         FileBox::open_new(p, Default::default())
+    }
+
+    /// Opens a `FileBox` from a path, creating a new one with a default value if the file doesn’t
+    /// exist.
+    pub fn open_or_new(p: &Path) -> FileBox<T> {
+        if p.exists() {
+            FileBox::open(p)
+        } else {
+            FileBox::new(p)
+        }
     }
 }
 

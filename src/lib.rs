@@ -27,6 +27,7 @@ extern crate serialize;
 use std::default::Default;
 use std::str;
 use std::io::{mod, fs, File, IoError, IoResult};
+use std::fmt::{mod, Show, Formatter};
 use serialize::{json, Decoder, Decodable, Encoder, Encodable};
 
 /// A box that writes to a file when dropped, and reads from a file when created.
@@ -102,6 +103,12 @@ impl<'a, T> Drop for FileBox<T> where T: Encodable<json::Encoder<'a>, IoError> {
     }
 }
 
+impl<T> Show for FileBox<T> where T: Show {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self._val.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::FileBox;
@@ -149,5 +156,15 @@ mod tests {
             // doesn’t)
             Err(_) => {},
         }
+    }
+
+    #[test]
+    fn show() {
+        let path = Path::new("target/show");
+        let x: FileBox<int> = FileBox::open_new(&path, 1);
+        assert_eq!(format!("{}", x), "1".to_string());
+
+        let x: FileBox<Box<Vec<int>>> = FileBox::open_new(&path, box vec![1, 2, 3]);
+        assert_eq!(format!("{}", x), "[1, 2, 3]".to_string());
     }
 }

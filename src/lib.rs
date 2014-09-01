@@ -10,10 +10,10 @@
 //! use filebox::FileBox;
 //!
 //! fn main() {
-//!     let path = Path::new("target/filebox.json");
+//!     let path = Path::new("target/filebox.box");
 //!     {
 //!         let mut db = FileBox::open_new(&path, 15i);
-//!         // The number 15 is now stored in the file "target/filebox.json"
+//!         // The number 15 is now stored in the file "target/filebox.box"
 //!         // and can be retrieved later
 //!         *db += 2;
 //!     }
@@ -23,12 +23,12 @@
 //! ```
 
 extern crate serialize;
+extern crate redox;
 
 use std::default::Default;
-use std::str;
 use std::io::{mod, fs, File, IoError, IoResult};
 use std::fmt::{mod, Show, Formatter};
-use serialize::{json, Decoder, Decodable, Encoder, Encodable};
+use serialize::{Decoder, Decodable, Encoder, Encodable};
 
 /// A box that writes to a file when dropped, and reads from a file when created.
 pub struct FileBox<T> {
@@ -36,7 +36,7 @@ pub struct FileBox<T> {
     _val: T,
 }
 
-impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> {
+impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError> {
     /// Creates a new `FileBox` at the given path with the given value. If the file at the path is
     /// not empty, it will be overwritten.
     pub fn open_new(p: &Path, val: T) -> FileBox<T> {
@@ -50,8 +50,7 @@ impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> {
     /// cannot be read or the file contains invalid data.
     pub fn open(p: &Path) -> FileBox<T> {
         let mut f = File::open_mode(p, io::Open, io::Read).unwrap();
-        let val = json::decode(str::from_utf8(f.read_to_end().unwrap().as_slice()).unwrap())
-                    .unwrap();
+        let val = redox::Decoder::buffer_decode(f.read_to_end().unwrap()).unwrap();
         let f = File::open_mode(p, io::Truncate, io::Write).unwrap();
         FileBox {
             f: f,
@@ -66,7 +65,7 @@ impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> {
     }
 }
 
-impl<T> FileBox<T> where T: Decodable<json::Decoder, json::DecoderError> + Default {
+impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError> + Default {
     /// Creates a new `FileBox` at the given path with its default value.
     pub fn new(p: &Path) -> FileBox<T> {
         FileBox::open_new(p, Default::default())
@@ -96,10 +95,10 @@ impl<T> DerefMut<T> for FileBox<T> {
 }
 
 #[unsafe_destructor]
-impl<'a, T> Drop for FileBox<T> where T: Encodable<json::Encoder<'a>, IoError> {
+impl<'a, T> Drop for FileBox<T> where T: Encodable<redox::Encoder<'a>, IoError> {
     fn drop(&mut self) {
         // TODO: decide what this should do if the file can’t be written to
-        self.f.write(json::encode(&self._val).as_bytes()).ok().expect("could not write to file");
+        self.f.write(redox::Encoder::buffer_encode(&self._val).as_slice()).ok().expect("could not write to file");
     }
 }
 

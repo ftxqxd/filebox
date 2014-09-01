@@ -2,3 +2,6 @@
 name = "filebox"
 version = "0.0.0"
 authors = ["P1start"]
+
+[dependencies.redox]
+git = "https://github.com/P1start/redox.git"

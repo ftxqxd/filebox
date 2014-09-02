@@ -33,7 +33,7 @@ use redox::{DecodeResult, IoError};
 
 /// A box that writes to a file when dropped, and reads from a file when created.
 pub struct FileBox<T> {
-    f: File,
+    _file: File,
     _val: T,
 }
 
@@ -42,7 +42,7 @@ impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError
     /// not empty, it will be overwritten.
     pub fn open_new(p: &Path, val: T) -> DecodeResult<FileBox<T>> {
         Ok(FileBox {
-            f: try!(File::open_mode(p, io::Truncate, io::Write).map_err(|x| IoError(x))),
+            _file: try!(File::open_mode(p, io::Truncate, io::Write).map_err(|x| IoError(x))),
             _val: val,
         })
     }
@@ -54,7 +54,7 @@ impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError
         let val = try!(redox::Decoder::buffer_decode(try!(f.read_to_end().map_err(|x| IoError(x)))));
         let f = try!(File::open_mode(p, io::Truncate, io::Write).map_err(|x| IoError(x)));
         Ok(FileBox {
-            f: f,
+            _file: f,
             _val: val,
         })
     }
@@ -62,7 +62,7 @@ impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError
     /// Deletes a `FileBox`, deleting the file it is stored in. Returns the result of deleting the
     /// file.
     pub fn delete(self) -> IoResult<()> {
-        fs::unlink(self.f.path())
+        fs::unlink(self._file.path())
     }
 }
 
@@ -99,7 +99,7 @@ impl<T> DerefMut<T> for FileBox<T> {
 impl<'a, T> Drop for FileBox<T> where T: Encodable<redox::Encoder<'a>, IoError> {
     fn drop(&mut self) {
         // TODO: decide what this should do if the file can’t be written to
-        self.f.write(redox::Encoder::buffer_encode(&self._val).as_slice()).ok().expect("could not write to file");
+        self._file.write(redox::Encoder::buffer_encode(&self._val).as_slice()).ok().expect("could not write to file");
     }
 }
 

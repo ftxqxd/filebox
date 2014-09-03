@@ -37,7 +37,8 @@ pub struct FileBox<T> {
     _val: T,
 }
 
-impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError> {
+impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError>
+                              + Encodable<redox::Encoder<'a>, IoError> {
     /// Creates a new `FileBox` at the given path with the given value. If the file at the path is
     /// not empty, it will be overwritten.
     pub fn open_new(p: &Path, val: T) -> DecodeResult<FileBox<T>> {
@@ -66,7 +67,8 @@ impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError
     }
 }
 
-impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError> + Default {
+impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError>
+                              + Encodable<redox::Encoder<'a>, IoError> + Default {
     /// Creates a new `FileBox` at the given path with its default value.
     pub fn new(p: &Path) -> DecodeResult<FileBox<T>> {
         FileBox::open_new(p, Default::default())

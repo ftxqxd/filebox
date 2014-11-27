@@ -3,5 +3,5 @@ name = "filebox"
 version = "0.0.0"
 authors = ["P1start"]
 
-[dependencies.redox]
-git = "https://github.com/P1start/redox.git"
+[dependencies]
+bincode = "0.0.2"

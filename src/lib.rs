@@ -23,13 +23,14 @@
 //! ```
 
 extern crate serialize;
-extern crate redox;
+extern crate bincode;
 
 use std::default::Default;
-use std::io::{mod, fs, File, IoError, IoResult};
+use std::io::{mod, fs, File, IoError, IoResult, BufferedReader, MemWriter};
+use std::io::fs::PathExtensions;
 use std::fmt::{mod, Show, Formatter};
-use serialize::{Decoder, Decodable, Encoder, Encodable};
-use redox::{DecodeResult, IoError};
+use serialize::{Decodable, Encodable};
+use bincode::{DecoderReader, EncoderWriter};
 
 /// A box that writes to a file when dropped, and reads from a file when created.
 pub struct FileBox<T> {
@@ -37,23 +38,23 @@ pub struct FileBox<T> {
     _val: T,
 }
 
-impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError>
-                              + Encodable<redox::Encoder<'a>, IoError> {
+impl<'a, T> FileBox<T> where T: Decodable<DecoderReader<'a, BufferedReader<File>>, IoError>
+                              + Encodable<EncoderWriter<'a, MemWriter>, IoError> {
     /// Creates a new `FileBox` at the given path with the given value. If the file at the path is
     /// not empty, it will be overwritten.
-    pub fn open_new(p: &Path, val: T) -> DecodeResult<FileBox<T>> {
+    pub fn open_new(p: &Path, val: T) -> IoResult<FileBox<T>> {
         Ok(FileBox {
-            _file: try!(File::open_mode(p, io::Truncate, io::Write).map_err(|x| IoError(x))),
+            _file: try!(File::open_mode(p, io::Truncate, io::Write)),
             _val: val,
         })
     }
 
     /// Opens a `FileBox` from a path, reading the data stored inside. This will fail if the file
     /// cannot be read or the file contains invalid data.
-    pub fn open(p: &Path) -> DecodeResult<FileBox<T>> {
-        let mut f = try!(File::open_mode(p, io::Open, io::Read).map_err(|x| IoError(x)));
-        let val = try!(redox::Decoder::buffer_decode(try!(f.read_to_end().map_err(|x| IoError(x)))));
-        let f = try!(File::open_mode(p, io::Truncate, io::Write).map_err(|x| IoError(x)));
+    pub fn open(p: &Path) -> IoResult<FileBox<T>> {
+        let f = try!(File::open_mode(p, io::Open, io::Read));
+        let val = try!(bincode::decode_from(&mut BufferedReader::new(f)));
+        let f = try!(File::open_mode(p, io::Truncate, io::Write));
         Ok(FileBox {
             _file: f,
             _val: val,
@@ -67,16 +68,17 @@ impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError
     }
 }
 
-impl<'a, T> FileBox<T> where T: Decodable<redox::Decoder<'a>, redox::DecodeError>
-                              + Encodable<redox::Encoder<'a>, IoError> + Default {
+impl<'a, T> FileBox<T> where T: Decodable<DecoderReader<'a, BufferedReader<File>>, IoError>
+                              + Encodable<EncoderWriter<'a, MemWriter>, IoError>
+                              + Default {
     /// Creates a new `FileBox` at the given path with its default value.
-    pub fn new(p: &Path) -> DecodeResult<FileBox<T>> {
+    pub fn new(p: &Path) -> IoResult<FileBox<T>> {
         FileBox::open_new(p, Default::default())
     }
 
     /// Opens a `FileBox` from a path, creating a new one with a default value if the file doesn’t
     /// exist.
-    pub fn open_or_new(p: &Path) -> DecodeResult<FileBox<T>> {
+    pub fn open_or_new(p: &Path) -> IoResult<FileBox<T>> {
         if p.exists() {
             FileBox::open(p)
         } else {
@@ -98,10 +100,11 @@ impl<T> DerefMut<T> for FileBox<T> {
 }
 
 #[unsafe_destructor]
-impl<'a, T> Drop for FileBox<T> where T: Encodable<redox::Encoder<'a>, IoError> {
+impl<'a, T> Drop for FileBox<T> where T: Encodable<EncoderWriter<'a, MemWriter>, IoError> {
     fn drop(&mut self) {
         // TODO: decide what this should do if the file can’t be written to
-        self._file.write(redox::Encoder::buffer_encode(&self._val).as_slice()).ok().expect("could not write to file");
+        self._file.write(bincode::encode(&self._val).unwrap().as_slice())
+            .ok().expect("could not write to file");
     }
 }
 
@@ -150,7 +153,7 @@ mod tests {
         let x: FileBox<int> = FileBox::new(&path).unwrap();
         x.delete().unwrap();
         match FileBox::<int>::open(&path) {
-            Ok(_) => fail!("opened the file which should be deleted"),
+            Ok(_) => panic!("opened the file which should be deleted"),
             Err(_) => {},
         }
     }
